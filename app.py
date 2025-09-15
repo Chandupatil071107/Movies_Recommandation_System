@@ -8,8 +8,8 @@ import requests
 # =======================
 # Google Drive File IDs (replace with your real IDs!)
 # =======================
-MOVIES_FILE_ID = "1AbCdEfGh123MOVIESID"        # example: 1AbCdEfGh123MOVIESID
-SIMILARITY_FILE_ID = " 1XyZpQrSTUVWXYZSIMILARITY" # example: 1XyZpQrSTUVWXYZSIMILARITY
+MOVIES_FILE_ID = "187VPQGkaFYsaqsUFDoxGGrldN-bbFzp8"        # example: 1AbCdEfGh123MOVIESID
+SIMILARITY_FILE_ID = "1IOmttRuwby4Awf4X1yLxZBzMvZd5tV51" # example: 1XyZpQrSTUVWXYZSIMILARITY
 
 # =======================
 # Download pickle files from Google Drive
