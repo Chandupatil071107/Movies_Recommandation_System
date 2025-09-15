@@ -1,87 +1,114 @@
 # I added the comments on this file so everyone can understand
 import streamlit as st
 import pickle
-import gdown
 import pandas as pd
 import requests
 
-# =======================
-# Google Drive File IDs (replace with your real IDs!)
-# =======================
-MOVIES_FILE_ID = "187VPQGkaFYsaqsUFDoxGGrldN-bbFzp8"        # example: 1AbCdEfGh123MOVIESID
-SIMILARITY_FILE_ID = "1IOmttRuwby4Awf4X1yLxZBzMvZd5tV51" # example: 1XyZpQrSTUVWXYZSIMILARITY
+# ------------------- CONFIG -------------------
+OMDB_API_KEY = "e39708f0"  # your OMDb key
+MOVIES_FILE_ID = "187VPQGkaFYsaqsUFDoxGGrldN-bbFzp8"
+SIMILARITY_FILE_ID = "1IOmttRuwby4Awf4X1yLxZBzMvZd5tV51"
 
-# =======================
-# Download pickle files from Google Drive
-# =======================
-def download_file(file_id, output):
+# ------------------- GOOGLE DRIVE LOADER -------------------
+@st.cache_resource
+def load_pickle_from_drive(file_id):
     url = f"https://drive.google.com/uc?id={file_id}"
-    gdown.download(url, output, quiet=False)
+    return pickle.loads(requests.get(url).content)
 
-download_file(MOVIES_FILE_ID, "movies.pkl")
-download_file(SIMILARITY_FILE_ID, "similarity.pkl")
+movies = load_pickle_from_drive(MOVIES_FILE_ID)
+similarity = load_pickle_from_drive(SIMILARITY_FILE_ID)
+movies = pd.DataFrame(movies)
 
-# =======================
-# Load Data
-# =======================
-movies = pickle.load(open("movies.pkl", "rb"))
-similarity = pickle.load(open("similarity.pkl", "rb"))
-
-# If movies is dict, convert to DataFrame
-if isinstance(movies, dict):
-    movies = pd.DataFrame(movies)
-
-# =======================
-# Fetch Poster Function
-# =======================
-def fetch_poster(movie_id):
-    api_key = "YOUR_TMDB_API_KEY"  # Replace with your TMDB API key
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
-    response = requests.get(url)
-    data = response.json()
-    poster_path = data.get("poster_path")
-    if poster_path:
-        return "https://image.tmdb.org/t/p/w500/" + poster_path
+# ------------------- POSTER FETCHER -------------------
+def fetch_poster(movie_title):
+    url = f"http://www.omdbapi.com/?t={movie_title}&apikey={OMDB_API_KEY}"
+    data = requests.get(url).json()
+    poster = data.get("Poster")
+    if poster and poster != "N/A":
+        return poster
     else:
-        return "https://via.placeholder.com/500x750.png?text=No+Image"
+        return "https://via.placeholder.com/300x450?text=No+Image"
 
-# =======================
-# Recommendation Function
-# =======================
+# ------------------- RECOMMENDER -------------------
 def recommend(movie):
-    if movie not in movies["title"].values:
-        return [], []
+    index = movies[movies['title'] == movie].index[0]
+    distances = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
+    recommended_movie_names = []
+    recommended_movie_posters = []
 
-    movie_index = movies[movies["title"] == movie].index[0]
-    distances = similarity[movie_index]
-    movie_list = sorted(
-        list(enumerate(distances)), reverse=True, key=lambda x: x[1]
-    )[1:6]
+    for i in distances[1:6]:
+        movie_title = movies.iloc[i[0]].title
+        recommended_movie_names.append(movie_title)
+        recommended_movie_posters.append(fetch_poster(movie_title))
+    return recommended_movie_names, recommended_movie_posters
 
-    recommended_movies = []
-    recommended_posters = []
-    for i in movie_list:
-        movie_id = movies.iloc[i[0]].movie_id  # using movie_id
-        recommended_movies.append(movies.iloc[i[0]].title)
-        recommended_posters.append(fetch_poster(movie_id))
-    return recommended_movies, recommended_posters
+# ------------------- UI DESIGN -------------------
+st.set_page_config(page_title="Movie Recommender", layout="wide")
 
-# =======================
-# Streamlit UI
-# =======================
-st.title("🎬 Movie Recommendation System")
+st.markdown("""
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            font-family: 'Arial', sans-serif;
+        }
+        .title {
+            text-align: center;
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 20px;
+            margin-bottom: 50px;
+            color: #ddd;
+        }
+        .movie-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-radius: 15px;
+            overflow: hidden;
+            text-align: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(8px);
+        }
+        .movie-card:hover {
+            transform: scale(1.08);
+            box-shadow: 0px 10px 25px rgba(0,0,0,0.4);
+        }
+        .movie-card img {
+            border-radius: 12px;
+            height: 350px;
+            object-fit: cover;
+            margin-bottom: 10px;
+        }
+        .movie-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# ------------------- MAIN APP -------------------
+st.markdown("<div class='title'>🎬 Movie Recommendation System</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Discover your next favorite movie</div>", unsafe_allow_html=True)
 
 selected_movie_name = st.selectbox(
-    "Select a movie:", movies["title"].values
+    "Select a movie:",
+    movies['title'].values
 )
 
-if st.button("Recommend"):
+if st.button("Recommend 🎥"):
     names, posters = recommend(selected_movie_name)
-    if names:
-        cols = st.columns(5)
-        for i in range(len(names)):
-            with cols[i]:
-                st.text(names[i])
-                st.image(posters[i])
-    else:
-        st.error("Movie not found in database!")
+
+    cols = st.columns(5)
+    for idx, col in enumerate(cols):
+        with col:
+            st.markdown(f"""
+                <div class="movie-card">
+                    <img src="{posters[idx]}" width="100%">
+                    <div class="movie-title">{names[idx]}</div>
+                </div>
+            """, unsafe_allow_html=True)
