@@ -26,16 +26,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# ---------------------- Google Drive File IDs ----------------------
+MOVIE_DICT_ID = "187VPQGkaFYsaqsUFDoxGGrldN-bbFzp8"
+SIMILARITY_ID  = "1IOmttRuwby4Awf4X1yLxZBzMvZd5tV51"
+
 # ---------------------- Load Pickle Files from Google Drive ----------------------
 @st.cache_data
 def load_pickle_from_drive(file_id):
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
     response = requests.get(url)
     return pickle.loads(response.content)
-
-# Replace with your Google Drive file IDs
-MOVIE_DICT_ID = "YOUR_MOVIE_DICT_FILE_ID"
-SIMILARITY_ID = "YOUR_SIMILARITY_FILE_ID"
 
 movies_dict = load_pickle_from_drive(MOVIE_DICT_ID)
 movies = pd.DataFrame(movies_dict)
@@ -110,5 +110,3 @@ if st.button('Recommend'):
                 """,
                 unsafe_allow_html=True
             )
-
-   
