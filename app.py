@@ -1,105 +1,55 @@
 # I added the comments on this file so everyone can understand
 import streamlit as st
-import pickle
 import pandas as pd
 import requests
+import pickle
 import time
 
-# ---------------------- Custom CSS ----------------------
+# ---------------------- Streamlit Custom CSS ----------------------
 st.markdown("""
     <style>
-    /* Background with a cinema-style wallpaper */
     .stApp {
         background: url("https://www.transparenttextures.com/patterns/cubes.png"), linear-gradient(135deg, #0f0c29, #302b63, #24243e);
         background-size: cover;
         color: white;
         font-family: 'Poppins', sans-serif;
     }
-
-    /* Title */
-    h1 {
-        text-align: center;
-        color: #ffcc00;
-        font-size: 3rem;
-        margin-bottom: 20px;
-        text-shadow: 3px 3px 8px #000000;
-    }
-
-    /* Subtitle */
-    h3 {
-        text-align: center;
-        color: #ffffff;
-        font-size: 1.3rem;
-        margin-bottom: 30px;
-        font-weight: 400;
-    }
-
-    /* Movie Cards */
-    .movie-card {
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 15px;
-        padding: 15px;
-        text-align: center;
-        transition: 0.3s;
-        backdrop-filter: blur(6px);
-    }
-    .movie-card:hover {
-        transform: scale(1.08);
-        background: rgba(255, 255, 255, 0.18);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-    }
-
-    /* Movie Titles */
-    .movie-title {
-        font-size: 1.1rem;
-        font-weight: bold;
-        color: #ffcc00;
-        margin-top: 10px;
-        text-shadow: 1px 1px 4px #000;
-    }
-
-    /* Movie Info */
-    .movie-info {
-        font-size: 0.9rem;
-        color: #ddd;
-        margin-top: 5px;
-    }
-
-    /* Buttons */
-    .stButton button {
-        background-color: #ff4757;
-        color: white;
-        border-radius: 10px;
-        padding: 10px 25px;
-        font-size: 1rem;
-        transition: 0.3s;
-        border: none;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
-    }
-    .stButton button:hover {
-        background-color: #e84118;
-        transform: scale(1.05);
-    }
-
-    /* Dropdown */
-    .stSelectbox div[data-baseweb="select"] {
-        background-color: white;
-        color: black;
-        border-radius: 10px;
-        padding: 5px;
-    }
+    h1 { text-align: center; color: #ffcc00; font-size: 3rem; margin-bottom: 20px; text-shadow: 3px 3px 8px #000; }
+    h3 { text-align: center; color: #ffffff; font-size: 1.3rem; margin-bottom: 30px; font-weight: 400; }
+    .movie-card { background: rgba(255,255,255,0.08); border-radius: 15px; padding: 15px; text-align: center; transition:0.3s; backdrop-filter: blur(6px); }
+    .movie-card:hover { transform: scale(1.08); background: rgba(255,255,255,0.18); box-shadow:0 8px 20px rgba(0,0,0,0.5); }
+    .movie-title { font-size:1.1rem; font-weight:bold; color:#ffcc00; margin-top:10px; text-shadow:1px 1px 4px #000; }
+    .movie-info { font-size:0.9rem; color:#ddd; margin-top:5px; }
+    .stButton button { background-color:#ff4757; color:white; border-radius:10px; padding:10px 25px; font-size:1rem; transition:0.3s; border:none; box-shadow:0px 4px 10px rgba(0,0,0,0.4); }
+    .stButton button:hover { background-color:#e84118; transform:scale(1.05); }
+    .stSelectbox div[data-baseweb="select"] { background-color:white; color:black; border-radius:10px; padding:5px; }
     </style>
 """, unsafe_allow_html=True)
 
+# ---------------------- Load Pickle Files from Google Drive ----------------------
+@st.cache_data
+def load_pickle_from_drive(file_id):
+    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    response = requests.get(url)
+    return pickle.loads(response.content)
 
-# ---------------------- Fetch Poster Function ----------------------
+# Replace with your Google Drive file IDs
+MOVIE_DICT_ID = "YOUR_MOVIE_DICT_FILE_ID"
+SIMILARITY_ID = "YOUR_SIMILARITY_FILE_ID"
+
+movies_dict = load_pickle_from_drive(MOVIE_DICT_ID)
+movies = pd.DataFrame(movies_dict)
+similarity = load_pickle_from_drive(SIMILARITY_ID)
+
+# ---------------------- Fetch Movie Info from OMDb ----------------------
+@st.cache_data
 def fetch_movie_data(movie_title):
-    api_key = "e39708f0"  
+    api_key = st.secrets["omdb"]["api_key"]  # OMDb API key from Streamlit secrets
     url = f"http://www.omdbapi.com/?t={movie_title}&apikey={api_key}"
 
     for attempt in range(3):
         try:
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=20)
             response.raise_for_status()
             data = response.json()
 
@@ -115,17 +65,15 @@ def fetch_movie_data(movie_title):
 
         except requests.exceptions.RequestException:
             if attempt < 2:
-                time.sleep(2)
+                time.sleep(1)
                 continue
             return "https://via.placeholder.com/500x750?text=Error", "N/A", "N/A", "N/A"
 
-
-# ---------------------- Recommender Function ----------------------
+# ---------------------- Recommendation Function ----------------------
 def recommend(movie):
     movie_index = movies[movies['title'] == movie].index[0]
     distances = similarity[movie_index]
-    movies_list = sorted(list(enumerate(distances)),
-                         reverse=True, key=lambda x: x[1])[1:6]
+    movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
 
     recommended_data = []
     for i in movies_list:
@@ -135,25 +83,19 @@ def recommend(movie):
 
     return recommended_data
 
-
-# ---------------------- Load Data ----------------------
-movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
-movies = pd.DataFrame(movies_dict)
-similarity = pickle.load(open('similarity.pkl', 'rb'))
-
 # ---------------------- Streamlit UI ----------------------
 st.title('🎬 Movie Recommender System')
 st.markdown("<h3>Find similar movies based on your favorite one!</h3>", unsafe_allow_html=True)
 
 selected_movie_name = st.selectbox(
-    "Choose a movie to get similar recommendations:",
+    "Choose a movie:",
     movies['title'].values
 )
 
 if st.button('Recommend'):
     recommendations = recommend(selected_movie_name)
-
     cols = st.columns(5)
+
     for idx, col in enumerate(cols):
         with col:
             title, poster, year, genre, plot = recommendations[idx]
@@ -162,9 +104,11 @@ if st.button('Recommend'):
                 <div class="movie-card">
                     <img src="{poster}" width="150" style="border-radius:10px;">
                     <div class="movie-title">{title}</div>
-                    <div class="movie-info">{year}</div>
-                    <div class="movie-info">{genre}</div>
+                    <div class="movie-info">📅 {year}</div>
+                    <div class="movie-info">🎭 {genre}</div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
+
+   
